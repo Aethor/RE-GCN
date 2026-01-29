@@ -1,20 +1,12 @@
 # Temporal Knowledge Graph Reasoning Based on Evolutional Representation Learning
 
-This is the official code release of the following paper: 
-
-Zixuan Li, Xiaolong Jin, Wei Li, Saiping Guan, Jiafeng Guo, Huawei Shen, Yuanzhuo Wang and Xueqi Cheng. [Temporal Knowledge Graph Reasoning Based on Evolutional Representation Learning](https://arxiv.org/abs/2104.10353). SIGIR 2021.
-
-<img src="https://github.com/Lee-zix/RE-GCN/blob/master/img/regcn.png" alt="regcn_architecture" width="700" class="center">
+This is an update of RE-GCN with more recent libraries (torch 2.4.0 rather than 1.6.0).
 
 ## Quick Start
 
 ### Environment variables & dependencies
-```
-conda create -n regcn python=3.7
-
-conda activate regcn
-
-pip install -r requirement.txt
+```sh
+uv sync
 ```
 
 ### Process data
