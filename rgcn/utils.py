@@ -360,11 +360,8 @@ def load_data(dataset, bfs_level=3, relabel=False):
         return knwlgrh.load_entity(dataset, bfs_level, relabel)
     elif dataset in ['FB15k', 'wn18', 'FB15k-237']:
         return knwlgrh.load_link(dataset)
-    elif dataset in ['ICEWS18', 'ICEWS14', "GDELT", "SMALL", "ICEWS14s", "ICEWS05-15","YAGO",
-                     "WIKI"]:
-        return knwlgrh.load_from_local("../data", dataset)
     else:
-        raise ValueError('Unknown dataset: {}'.format(dataset))
+        return knwlgrh.load_from_local("../data", dataset)
 
 def construct_snap(test_triples, num_nodes, num_rels, final_score, topK):
     sorted_score, indices = torch.sort(final_score, dim=1, descending=True)
