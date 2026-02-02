@@ -5,9 +5,25 @@ This is an update of RE-GCN with more recent libraries (torch 2.4.0 rather than 
 ## Quick Start
 
 ### Environment variables & dependencies
+
+Either use `uv`:
+
 ```sh
 uv sync
 ```
+
+Or:
+
+```sh
+python -m venv .venv
+source .venv/bin/activate
+pip install torch==2.4.0 torchvision==0.19.0 --index-url https://download.pytorch.org/whl/cu124
+pip install dgl -f https://data.dgl.ai/wheels/torch-2.4/cu124/repo.html
+pip install tqdm pandas rdflib
+```
+
+In both cases, you get torch 2.4.0 with cuda 12.4. If necessary (maybe because you have a GPU not supported by cuda 12.4), you can get a more recent version of torch/cuda with [a more recent Nvidia dgl container](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/dgl?version=25.08-py3). See the Dockerfile included in this repo for torch 2.8.0 with cuda 12.8.
+
 
 ### Process data
 First, unzip and unpack the data files 
