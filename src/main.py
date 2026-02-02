@@ -310,6 +310,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
             random.shuffle(idx)
 
             for train_sample_num in tqdm(idx):
+                optimizer.zero_grad()
                 if train_sample_num == 0:
                     continue
                 output = train_list[train_sample_num : train_sample_num + 1]
@@ -331,10 +332,15 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                     else [torch.from_numpy(_).long() for _ in output]
                 )
 
-                with autocast("cuda", enabled=args.bf16, dtype=torch.bfloat16):
-                    loss_e, loss_r, loss_static = model.get_loss(
-                        history_glist, output[0], static_graph, use_cuda
-                    )
+                try:
+                    with autocast("cuda", enabled=args.bf16, dtype=torch.bfloat16):
+                        loss_e, loss_r, loss_static = model.get_loss(
+                            history_glist, output[0], static_graph, use_cuda
+                        )
+                except torch.OutOfMemoryError as e:
+                    print(e)
+                    torch.cuda.empty_cache()
+                    continue
 
                 loss = (
                     args.task_weight * loss_e
@@ -356,7 +362,6 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                     loss.backward()
                     torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_norm)
                     optimizer.step()
-                optimizer.zero_grad()
 
             print(
                 "Epoch {:04d} | Ave Loss: {:.4f} | entity-relation-static:{:.4f}-{:.4f}-{:.4f} Best MRR {:.4f} | Model {} ".format(
