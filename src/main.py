@@ -18,8 +18,7 @@ import logging
 import dgl
 import numpy as np
 import torch
-from torch.amp import autocast
-from torch.cuda.amp import GradScaler
+from torch.amp import autocast, GradScaler
 from tqdm import tqdm
 import random
 
@@ -288,6 +287,7 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
     )  # CHANGED  eval_paper_authors to add runnr
 
     model_state_file = os.getcwd()[:-4] + "/models/" + model_name
+    os.makedirs(os.path.dirname(model_state_file), exist_ok=True)
     print("Sanity Check: stat name : {}".format(model_state_file))
     print("Sanity Check: Is cuda available ? {}".format(torch.cuda.is_available()))
 
