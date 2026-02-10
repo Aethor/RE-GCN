@@ -5,8 +5,8 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
-  "torch==2.8.0",
-  "torchvision==0.23.0",
+  "torch==2.9.0",
+  "torchvision==0.24.0",
   "dgl==2.5.0",
   "tqdm",
   "pandas",
@@ -15,18 +15,18 @@ dependencies = [
 
 [tool.uv.sources]
 torch = [
-  { index = "pytorch-cu128" },
+  { index = "pytorch-cu130" },
 ]
 dgl = [
-  { index = "dgl-cu128" }
+  { index = "dgl-cu130" }
 ]
 
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [[tool.uv.index]]
-name = "dgl-cu128"
+name = "dgl-cu130"
 url = "https://gitlab.com/api/v4/projects/1060110/packages/pypi/simple"
 explicit = true
