@@ -1,4 +1,4 @@
-""" Knowledge graph dataset for Relational-GCN
+"""Knowledge graph dataset for Relational-GCN
 Code adapted from authors' implementation of Relational-GCN
 https://github.com/tkipf/relational-gcn
 https://github.com/MichSchli/RelationPrediction
@@ -19,8 +19,10 @@ from dgl.data.utils import download, extract_archive, get_download_dir, _get_dgl
 import sys
 
 np.random.seed(123)
+# np.random.seed(123) #MODIFIED  eval_paper_authors
 
-_downlaod_prefix = _get_dgl_url('dataset/')
+_downlaod_prefix = _get_dgl_url("dataset/")
+
 
 class RGCNEntityDataset(object):
     """RGCN Entity Classification dataset
@@ -87,19 +89,29 @@ class RGCNEntityDataset(object):
     def __init__(self, name):
         self.name = name
         self.dir = get_download_dir()
-        tgz_path = os.path.join(self.dir, '{}.tgz'.format(self.name))
-        download(_downlaod_prefix + '{}.tgz'.format(self.name), tgz_path)
+        tgz_path = os.path.join(self.dir, "{}.tgz".format(self.name))
+        download(_downlaod_prefix + "{}.tgz".format(self.name), tgz_path)
         self.dir = os.path.join(self.dir, self.name)
         extract_archive(tgz_path, self.dir)
 
     def load(self, bfs_level=2, relabel=False):
-        self.num_nodes, edges, self.num_rels, self.labels, labeled_nodes_idx, self.train_idx, self.test_idx = _load_data(self.name, self.dir)
+        (
+            self.num_nodes,
+            edges,
+            self.num_rels,
+            self.labels,
+            labeled_nodes_idx,
+            self.train_idx,
+            self.test_idx,
+        ) = _load_data(self.name, self.dir)
 
         # bfs to reduce edges
         if bfs_level > 0:
             print("removing nodes that are more than {} hops away".format(bfs_level))
             row, col, edge_type = edges.transpose()
-            A = sp.csr_matrix((np.ones(len(row)), (row, col)), shape=(self.num_nodes, self.num_nodes))
+            A = sp.csr_matrix(
+                (np.ones(len(row)), (row, col)), shape=(self.num_nodes, self.num_nodes)
+            )
             bfs_generator = _bfs_relational(A, labeled_nodes_idx)
             lvls = list()
             lvls.append(set(labeled_nodes_idx))
@@ -113,7 +125,9 @@ class RGCNEntityDataset(object):
             self.edge_type = edge_type[eid_to_keep]
 
             if relabel:
-                uniq_nodes, edges = np.unique((self.edge_src, self.edge_dst), return_inverse=True)
+                uniq_nodes, edges = np.unique(
+                    (self.edge_src, self.edge_dst), return_inverse=True
+                )
                 self.edge_src, self.edge_dst = np.reshape(edges, (2, -1))
                 node_map = np.zeros(self.num_nodes, dtype=int)
                 self.num_nodes = len(uniq_nodes)
@@ -126,9 +140,16 @@ class RGCNEntityDataset(object):
             self.src, self.dst, self.edge_type = edges.transpose()
 
         # normalize by dst degree
-        _, inverse_index, count = np.unique((self.edge_dst, self.edge_type), axis=1, return_inverse=True, return_counts=True)
+        _, inverse_index, count = np.unique(
+            (self.edge_dst, self.edge_type),
+            axis=1,
+            return_inverse=True,
+            return_counts=True,
+        )
         degrees = count[inverse_index]
-        self.edge_norm = np.ones(len(self.edge_dst), dtype=np.float32) / degrees.astype(np.float32)
+        self.edge_norm = np.ones(len(self.edge_dst), dtype=np.float32) / degrees.astype(
+            np.float32
+        )
 
         # convert to pytorch label format
         self.num_classes = self.labels.shape[1]
@@ -171,6 +192,7 @@ class RGCNLinkDataset(object):
     >>> data = load_data(dataset='FB15k-237')
 
     """
+
     def __init__(self, name, dir=None):
         self.name = name
         if dir:
@@ -179,24 +201,29 @@ class RGCNLinkDataset(object):
 
         else:
             self.dir = get_download_dir()
-            tgz_path = os.path.join(self.dir, '{}.tar.gz'.format(self.name))
-            download(_downlaod_prefix + '{}.tgz'.format(self.name), tgz_path)
+            tgz_path = os.path.join(self.dir, "{}.tar.gz".format(self.name))
+            download(_downlaod_prefix + "{}.tgz".format(self.name), tgz_path)
             self.dir = os.path.join(self.dir, self.name)
             extract_archive(tgz_path, self.dir)
         print(self.dir)
 
-
     def load(self, load_time=True):
-        entity_path = os.path.join(self.dir, 'entity2id.txt')
-        relation_path = os.path.join(self.dir, 'relation2id.txt')
-        train_path = os.path.join(self.dir, 'train.txt')
-        valid_path = os.path.join(self.dir, 'valid.txt')
-        test_path = os.path.join(self.dir, 'test.txt')
+        entity_path = os.path.join(self.dir, "entity2id.txt")
+        relation_path = os.path.join(self.dir, "relation2id.txt")
+        train_path = os.path.join(self.dir, "train.txt")
+        valid_path = os.path.join(self.dir, "valid.txt")
+        test_path = os.path.join(self.dir, "test.txt")
         entity_dict = _read_dictionary(entity_path)
         relation_dict = _read_dictionary(relation_path)
-        self.train = np.array(_read_triplets_as_list(train_path, entity_dict, relation_dict, load_time))
-        self.valid = np.array(_read_triplets_as_list(valid_path, entity_dict, relation_dict, load_time))
-        self.test = np.array(_read_triplets_as_list(test_path, entity_dict, relation_dict, load_time))
+        self.train = np.array(
+            _read_triplets_as_list(train_path, entity_dict, relation_dict, load_time)
+        )
+        self.valid = np.array(
+            _read_triplets_as_list(valid_path, entity_dict, relation_dict, load_time)
+        )
+        self.test = np.array(
+            _read_triplets_as_list(test_path, entity_dict, relation_dict, load_time)
+        )
         self.num_nodes = len(entity_dict)
         print("# Sanity Check:  entities: {}".format(self.num_nodes))
         self.num_rels = len(relation_dict)
@@ -256,7 +283,6 @@ def _bfs_relational(adj, roots):
     next_lvl = set()
 
     while current_lvl:
-
         for v in current_lvl:
             visited.add(v)
 
@@ -273,12 +299,11 @@ class RDFReader(object):
     __freq = {}
 
     def __init__(self, file):
-
         self.__graph = rdf.Graph()
 
-        if file.endswith('nt.gz'):
-            with gzip.open(file, 'rb') as f:
-                self.__graph.parse(file=f, format='nt')
+        if file.endswith("nt.gz"):
+            with gzip.open(file, "rb") as f:
+                self.__graph.parse(file=f, format="nt")
         else:
             self.__graph.parse(file, format=rdf.util.guess_format(file))
 
@@ -311,7 +336,7 @@ class RDFReader(object):
         :return:
         """
         res = list(set(self.__graph.predicates()))
-        res.sort(key=lambda rel: - self.freq(rel))
+        res.sort(key=lambda rel: -self.freq(rel))
         return res
 
     def __len__(self):
@@ -325,16 +350,24 @@ class RDFReader(object):
 
 def _load_sparse_csr(filename):
     loader = np.load(filename)
-    return sp.csr_matrix((loader['data'], loader['indices'], loader['indptr']),
-                         shape=loader['shape'], dtype=np.float32)
+    return sp.csr_matrix(
+        (loader["data"], loader["indices"], loader["indptr"]),
+        shape=loader["shape"],
+        dtype=np.float32,
+    )
 
 
 def _save_sparse_csr(filename, array):
-    np.savez(filename, data=array.data, indices=array.indices,
-             indptr=array.indptr, shape=array.shape)
+    np.savez(
+        filename,
+        data=array.data,
+        indices=array.indices,
+        indptr=array.indptr,
+        shape=array.shape,
+    )
 
 
-def _load_data(dataset_str='aifb', dataset_path=None):
+def _load_data(dataset_str="aifb", dataset_path=None):
     """
 
     :param dataset_str:
@@ -345,53 +378,56 @@ def _load_data(dataset_str='aifb', dataset_path=None):
     :return:
     """
 
-    print('Loading dataset', dataset_str)
+    print("Loading dataset", dataset_str)
 
-    graph_file = os.path.join(dataset_path, '{}_stripped.nt.gz'.format(dataset_str))
-    task_file = os.path.join(dataset_path, 'completeDataset.tsv')
-    train_file = os.path.join(dataset_path, 'trainingSet.tsv')
-    test_file = os.path.join(dataset_path, 'testSet.tsv')
-    if dataset_str == 'am':
-        label_header = 'label_category'
-        nodes_header = 'proxy'
-    elif dataset_str == 'aifb':
-        label_header = 'label_affiliation'
-        nodes_header = 'person'
-    elif dataset_str == 'mutag':
-        label_header = 'label_mutagenic'
-        nodes_header = 'bond'
-    elif dataset_str == 'bgs':
-        label_header = 'label_lithogenesis'
-        nodes_header = 'rock'
+    graph_file = os.path.join(dataset_path, "{}_stripped.nt.gz".format(dataset_str))
+    task_file = os.path.join(dataset_path, "completeDataset.tsv")
+    train_file = os.path.join(dataset_path, "trainingSet.tsv")
+    test_file = os.path.join(dataset_path, "testSet.tsv")
+    if dataset_str == "am":
+        label_header = "label_category"
+        nodes_header = "proxy"
+    elif dataset_str == "aifb":
+        label_header = "label_affiliation"
+        nodes_header = "person"
+    elif dataset_str == "mutag":
+        label_header = "label_mutagenic"
+        nodes_header = "bond"
+    elif dataset_str == "bgs":
+        label_header = "label_lithogenesis"
+        nodes_header = "rock"
     else:
-        raise NameError('Dataset name not recognized: ' + dataset_str)
+        raise NameError("Dataset name not recognized: " + dataset_str)
 
-    edge_file = os.path.join(dataset_path, 'edges.npz')
-    labels_file = os.path.join(dataset_path, 'labels.npz')
-    train_idx_file = os.path.join(dataset_path, 'train_idx.npy')
-    test_idx_file = os.path.join(dataset_path, 'test_idx.npy')
+    edge_file = os.path.join(dataset_path, "edges.npz")
+    labels_file = os.path.join(dataset_path, "labels.npz")
+    train_idx_file = os.path.join(dataset_path, "train_idx.npy")
+    test_idx_file = os.path.join(dataset_path, "test_idx.npy")
     # train_names_file = os.path.join(dataset_path, 'train_names.npy')
     # test_names_file = os.path.join(dataset_path, 'test_names.npy')
     # rel_dict_file = os.path.join(dataset_path, 'rel_dict.pkl')
     # nodes_file = os.path.join(dataset_path, 'nodes.pkl')
 
-    if os.path.isfile(edge_file) and os.path.isfile(labels_file) and \
-            os.path.isfile(train_idx_file) and os.path.isfile(test_idx_file):
-
+    if (
+        os.path.isfile(edge_file)
+        and os.path.isfile(labels_file)
+        and os.path.isfile(train_idx_file)
+        and os.path.isfile(test_idx_file)
+    ):
         # load precomputed adjacency matrix and labels
         all_edges = np.load(edge_file)
-        num_node = all_edges['n'].item()
-        edge_list = all_edges['edges']
-        num_rel = all_edges['nrel'].item()
+        num_node = all_edges["n"].item()
+        edge_list = all_edges["edges"]
+        num_rel = all_edges["nrel"].item()
 
-        print('Number of nodes: ', num_node)
-        print('Number of edges: ', len(edge_list))
-        print('Number of relations: ', num_rel)
+        print("Number of nodes: ", num_node)
+        print("Number of edges: ", len(edge_list))
+        print("Number of relations: ", num_rel)
 
         labels = _load_sparse_csr(labels_file)
         labeled_nodes_idx = list(labels.nonzero()[0])
 
-        print('Number of classes: ', labels.shape[1])
+        print("Number of classes: ", labels.shape[1])
 
         train_idx = np.load(train_idx_file)
         test_idx = np.load(test_idx_file)
@@ -401,14 +437,12 @@ def _load_data(dataset_str='aifb', dataset_path=None):
         # relations_dict = pkl.load(open(rel_dict_file, 'rb'))
 
     else:
-
         # loading labels of nodes
-        labels_df = pd.read_csv(task_file, sep='\t', encoding='utf-8')
-        labels_train_df = pd.read_csv(train_file, sep='\t', encoding='utf8')
-        labels_test_df = pd.read_csv(test_file, sep='\t', encoding='utf8')
+        labels_df = pd.read_csv(task_file, sep="\t", encoding="utf-8")
+        labels_train_df = pd.read_csv(train_file, sep="\t", encoding="utf8")
+        labels_test_df = pd.read_csv(test_file, sep="\t", encoding="utf8")
 
         with RDFReader(graph_file) as reader:
-
             relations = reader.relationList()
             subjects = reader.subjectSet()
             objects = reader.objectSet()
@@ -416,11 +450,11 @@ def _load_data(dataset_str='aifb', dataset_path=None):
             nodes = list(subjects.union(objects))
             num_node = len(nodes)
             num_rel = len(relations)
-            num_rel = 2 * num_rel + 1 # +1 is for self-relation
+            num_rel = 2 * num_rel + 1  # +1 is for self-relation
 
             assert num_node < np.iinfo(np.int32).max
-            print('Number of nodes: ', num_node)
-            print('Number of relations: ', num_rel)
+            print("Number of nodes: ", num_node)
+            print("Number of relations: ", num_rel)
 
             relations_dict = {rel: i for i, rel in enumerate(list(relations))}
             nodes_dict = {node: i for i, node in enumerate(nodes)}
@@ -443,27 +477,31 @@ def _load_data(dataset_str='aifb', dataset_path=None):
             # sort indices by destination
             edge_list = sorted(edge_list, key=lambda x: (x[1], x[0], x[2]))
             edge_list = np.array(edge_list, dtype=np.int)
-            print('Number of edges: ', len(edge_list))
+            print("Number of edges: ", len(edge_list))
 
-            np.savez(edge_file, edges=edge_list, n=np.array(num_node), nrel=np.array(num_rel))
+            np.savez(
+                edge_file, edges=edge_list, n=np.array(num_node), nrel=np.array(num_rel)
+            )
 
-        nodes_u_dict = {np.unicode(to_unicode(key)): val for key, val in
-                        nodes_dict.items()}
+        nodes_u_dict = {
+            np.unicode(to_unicode(key)): val for key, val in nodes_dict.items()
+        }
 
         labels_set = set(labels_df[label_header].values.tolist())
         labels_dict = {lab: i for i, lab in enumerate(list(labels_set))}
 
-        print('{} classes: {}'.format(len(labels_set), labels_set))
+        print("{} classes: {}".format(len(labels_set), labels_set))
 
         labels = sp.lil_matrix((num_node, len(labels_set)))
         labeled_nodes_idx = []
 
-        print('Loading training set')
+        print("Loading training set")
 
         train_idx = []
         train_names = []
-        for nod, lab in zip(labels_train_df[nodes_header].values,
-                            labels_train_df[label_header].values):
+        for nod, lab in zip(
+            labels_train_df[nodes_header].values, labels_train_df[label_header].values
+        ):
             nod = np.unicode(to_unicode(nod))  # type: unicode
             if nod in nodes_u_dict:
                 labeled_nodes_idx.append(nodes_u_dict[nod])
@@ -472,15 +510,18 @@ def _load_data(dataset_str='aifb', dataset_path=None):
                 train_idx.append(nodes_u_dict[nod])
                 train_names.append(nod)
             else:
-                print(u'Node not in dictionary, skipped: ',
-                      nod.encode('utf-8', errors='replace'))
+                print(
+                    "Node not in dictionary, skipped: ",
+                    nod.encode("utf-8", errors="replace"),
+                )
 
-        print('Loading test set')
+        print("Loading test set")
 
         test_idx = []
         test_names = []
-        for nod, lab in zip(labels_test_df[nodes_header].values,
-                            labels_test_df[label_header].values):
+        for nod, lab in zip(
+            labels_test_df[nodes_header].values, labels_test_df[label_header].values
+        ):
             nod = np.unicode(to_unicode(nod))
             if nod in nodes_u_dict:
                 labeled_nodes_idx.append(nodes_u_dict[nod])
@@ -489,12 +530,14 @@ def _load_data(dataset_str='aifb', dataset_path=None):
                 test_idx.append(nodes_u_dict[nod])
                 test_names.append(nod)
             else:
-                print(u'Node not in dictionary, skipped: ',
-                      nod.encode('utf-8', errors='replace'))
+                print(
+                    "Node not in dictionary, skipped: ",
+                    nod.encode("utf-8", errors="replace"),
+                )
 
         labeled_nodes_idx = sorted(labeled_nodes_idx)
         labels = labels.tocsr()
-        print('Number of classes: ', labels.shape[1])
+        print("Number of classes: ", labels.shape[1])
 
         _save_sparse_csr(labels_file, labels)
 
@@ -525,17 +568,17 @@ def to_unicode(input):
 
 def _read_dictionary(filename):
     d = {}
-    with open(filename, 'r+') as f:
+    with open(filename, "r+") as f:
         for line in f:
-            line = line.strip().split('\t')
+            line = line.strip().split("\t")
             d[int(line[1])] = line[0]
     return d
 
 
 def _read_triplets(filename):
-    with open(filename, 'r+') as f:
+    with open(filename, "r+") as f:
         for line in f:
-            processed_line = line.strip().split('\t')
+            processed_line = line.strip().split("\t")
             yield processed_line
 
 

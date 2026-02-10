@@ -13,6 +13,7 @@ import os
 import sys
 import time
 import pickle
+import logging
 
 import dgl
 import numpy as np
@@ -45,7 +46,12 @@ def test(
     model_name,
     static_graph,
     mode,
+    log=False,
+    eval_paper_authors_datasetname="ICEWS18",
+    eval_paper_authors_multistep_bool=True,
+    eval_paper_authors_exp_nr=0,
 ):
+    # added for logging : eval_paper_authors: log=False,  eval_paper_authors_datasetname='ICEWS18',  eval_paper_authors_multistep_bool=True,  eval_paper_authors_exp_nr=0):
     """
     :param model: model used to test
     :param history_list:    all input history snap shot list, not include output label train list or valid list
@@ -78,15 +84,54 @@ def test(
         print("\n" + "-" * 10 + "start testing" + "-" * 10 + "\n")
         model.load_state_dict(checkpoint["state_dict"])
 
+    ### ADDED  eval_paper_authors
+    # for logging scores
+    import inspect
+    import sys
+    import os
+
+    currentdir = os.path.dirname(
+        os.path.abspath(inspect.getfile(inspect.currentframe()))
+    )
+    # parentdir = os.path.dirname(currentdir)
+    sys.path.insert(1, currentdir)
+    sys.path.insert(1, os.path.join(sys.path[0], "../.."))
+    import evaluation_utils
+
+    exp_nr = eval_paper_authors_exp_nr  # seed
+    if eval_paper_authors_multistep_bool == True:
+        steps = "multistep"
+    else:
+        steps = "singlestep"
+
+    method = "regcn"
+    filter = "raw"
+    logname = (
+        method
+        + "-"
+        + eval_paper_authors_datasetname
+        + "-"
+        + str(exp_nr)
+        + "-"
+        + steps
+        + "-"
+        + filter
+    )
+    # renet-ICEWS18-multistep-raw-modifiedpredict_xxx_1_3206_6624.pt
+    ## END ADDED  eval_paper_authors
+
     model.eval()
     # do not have inverse relation in test input
     input_list = [snap for snap in history_list[-args.test_history_len :]]
+
+    eval_paper_authors_logging_dict = {}
 
     for time_idx, test_snap in enumerate(tqdm(test_list)):
         history_glist = [
             build_sub_graph(num_nodes, num_rels, g, use_cuda, args.gpu)
             for g in input_list
         ]
+
         test_triples_input = (
             torch.LongTensor(test_snap).cuda()
             if use_cuda
@@ -97,6 +142,22 @@ def test(
             history_glist, num_rels, static_graph, test_triples_input, use_cuda
         )
 
+        ## ADDED  eval_paper_authors
+        # # # logging scores
+        if log == True:
+            for triple, subobscores in zip(test_triples, final_score):
+                quad = triple.tolist()
+                quad.append(time_idx)
+
+                query_name, gt_test_query_ids = (
+                    evaluation_utils.query_name_from_quadruple(quad, num_rels)
+                )
+
+                eval_paper_authors_logging_dict[query_name] = [
+                    subobscores.cpu().detach().numpy(),
+                    gt_test_query_ids,
+                ]  # list w element 0: scores, element 1:gt
+        ## END ADDED  eval_paper_authors
         mrr_filter_snap_r, mrr_snap_r, rank_raw_r, rank_filter_r = utils.get_total_rank(
             test_triples,
             final_r_score,
@@ -143,10 +204,24 @@ def test(
             input_list.append(test_snap)
         idx += 1
 
-    mrr_raw = utils.stat_ranks(ranks_raw, "raw_ent")
-    mrr_filter = utils.stat_ranks(ranks_filter, "filter_ent")
-    mrr_raw_r = utils.stat_ranks(ranks_raw_r, "raw_rel")
-    mrr_filter_r = utils.stat_ranks(ranks_filter_r, "filter_rel")
+    mrr_raw = 0
+    mrr_raw = utils.stat_ranks(ranks_raw, "Entity Prediction Raw", log)
+    mrr_filter = utils.stat_ranks(ranks_filter, "Entity Prediction Filter", log)
+    mrr_raw_r = utils.stat_ranks(ranks_raw_r, "Relation Prediction Raw", log)
+    mrr_filter_r = utils.stat_ranks(ranks_filter_r, "Relation Prediction Filter", log)
+
+    # eval_paper_authors (logging)
+    if log == True:
+        import pathlib
+
+        dirname = os.path.join(pathlib.Path().resolve(), "results")
+        eval_paper_authorsfilename = os.path.join(dirname, logname + ".pkl")
+        # if not os.path.isfile( eval_paper_authorsfilename):
+        with open(eval_paper_authorsfilename, "wb") as file:
+            pickle.dump(eval_paper_authors_logging_dict, file, protocol=4)
+        file.close()
+    # END  eval_paper_authors
+
     return mrr_raw, mrr_filter, mrr_raw_r, mrr_filter_r
 
 
@@ -168,6 +243,12 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
     valid_list = utils.split_by_time(data.valid)
     test_list = utils.split_by_time(data.test)
 
+    logging.debug(
+        "Train: {}\t Valid: {}\t Test: {}".format(
+            len(data.train), len(data.valid), len(data.test)
+        )
+    )  # eval_paper_authors logging
+
     num_nodes = data.num_nodes
     num_rels = data.num_rels
 
@@ -184,7 +265,11 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
         data.valid, num_rels, num_nodes, True
     )
 
-    model_name = "{}-{}-{}-ly{}-dilate{}-his{}-weight:{}-discount:{}-angle:{}-dp{}|{}|{}|{}-gpu{}".format(
+    # model_name = "{}-{}-{}-ly{}-dilate{}-his{}-weight:{}-discount:{}-angle:{}-dp{}|{}|{}|{}-gpu{}.pth"\
+    #     .format(args.dataset, args.encoder, args.decoder, args.n_layers, args.dilate_len, args.train_history_len,
+    #             args.weight, args.discount, args.angle, args.dropout, args.input_dropout, args.hidden_dropout,
+    #             args.feat_dropout, args.gpu)
+    model_name = "{}-{}-{}-ly{}-dilate{}-his{}-weight-{}-discount-{}-angle-{}-dp{}-{}-{}-{}-gpu{}-run{}.pth".format(
         args.dataset,
         args.encoder,
         args.decoder,
@@ -199,8 +284,10 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
         args.hidden_dropout,
         args.feat_dropout,
         args.gpu,
-    )
-    model_state_file = "../models/" + model_name
+        args.runnr,
+    )  # CHANGED  eval_paper_authors to add runnr
+
+    model_state_file = os.getcwd()[:-4] + "/models/" + model_name
     print("Sanity Check: stat name : {}".format(model_state_file))
     print("Sanity Check: Is cuda available ? {}".format(torch.cuda.is_available()))
 
@@ -274,7 +361,19 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
     scaler = GradScaler()
 
+    ##  eval_paper_authors
+    mrrs = []
+    epoch = 0
+    if args.multi_step:
+        print(" eval_paper_authors multistep multistep")
+        eval_paper_authors_multistep_bool = True
+    else:
+        print(" eval_paper_authors multistep not multistep")
+        eval_paper_authors_multistep_bool = False
+    ## END
+
     if args.test and os.path.exists(model_state_file):
+        print(args.dataset)
         mrr_raw, mrr_filter, mrr_raw_r, mrr_filter_r = test(
             model,
             train_list + valid_list,
@@ -287,7 +386,11 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
             model_state_file,
             static_graph,
             "test",
-        )
+            log=True,
+            eval_paper_authors_datasetname=args.dataset,  # this line was added by  eval_paper_authors for logging
+            eval_paper_authors_multistep_bool=eval_paper_authors_multistep_bool,  # this line was added by  eval_paper_authors for loggin
+            eval_paper_authors_exp_nr=args.runnr,
+        )  # this line was added by  eval_paper_authors for logging
     elif args.test and not os.path.exists(model_state_file):
         print(
             "--------------{} not exist, Change mode to train and generate stat for testing----------------\n".format(
@@ -428,9 +531,20 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
 
 
 if __name__ == "__main__":
+    n = "RE-GCN"
+    log_dir = f"../../logs/{n}.log"
+    logging.basicConfig(
+        filename=log_dir,
+        filemode="a",
+        format="%(asctime)s - %(message)s",
+        datefmt="%d-%b-%y %H:%M:%S",
+        level=logging.DEBUG,
+    )  # #this  was added by  eval_paper_authors for logging
+
     parser = argparse.ArgumentParser(description="REGCN")
 
-    parser.add_argument("--gpu", type=int, default=-1, help="gpu")
+    parser.add_argument("--gpu", type=int, default=0, help="gpu")
+    parser.add_argument("--batch-size", type=int, default=1, help="batch-size")
     parser.add_argument(
         "-d", "--dataset", type=str, required=True, help="dataset to use"
     )
@@ -494,7 +608,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--discount",
         type=float,
-        default=1,
+        default=1.0,
         help="discount of weight of static constraint",
     )
     parser.add_argument("--angle", type=int, default=10, help="evolution speed")
@@ -546,13 +660,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--relation-prediction",
         action="store_true",
-        default=False,
+        default=True,  # default=False, # changed evaluation_paper_authors
         help="add relation prediction loss",
     )
     parser.add_argument(
         "--entity-prediction",
         action="store_true",
-        default=False,
+        default=True,  # default=False, # changed evaluation_paper_authors
         help="add entity prediction loss",
     )
     parser.add_argument(
@@ -598,10 +712,16 @@ if __name__ == "__main__":
 
     # configuration for sequences stat
     parser.add_argument(
-        "--train-history-len", type=int, default=10, help="history length"
+        "--train-history-len",
+        type=int,
+        default=3,  # default=10, changed evaluation_paper_authors
+        help="history length",
     )
     parser.add_argument(
-        "--test-history-len", type=int, default=20, help="history length for test"
+        "--test-history-len",
+        type=int,
+        default=3,  # default=20, changed evaluation_paper_authors
+        help="history length for test",
     )
     parser.add_argument(
         "--dilate-len", type=int, default=1, help="dilate history graph"
@@ -624,6 +744,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--num-k", type=int, default=500, help="number of triples generated"
     )
+    ##ADDED  eval_paper_authors
+    # args for logging the scores
+    parser.add_argument("--runnr", default=0, type=int)
+    ##END ADDED eval_paper_authors
 
     args = parser.parse_args()
     print(args)
