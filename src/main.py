@@ -440,31 +440,35 @@ def run_experiment(args, n_hidden=None, n_layers=None, dropout=None, n_bases=Non
                         loss_e, loss_r, loss_static = model.get_loss(
                             history_glist, output[0], static_graph, use_cuda
                         )
+
+                    loss = (
+                        args.task_weight * loss_e
+                        + (1 - args.task_weight) * loss_r
+                        + loss_static
+                    )
+                    if args.bf16:
+                        scaler.scale(loss).backward()
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), args.grad_norm
+                        )
+                        scaler.step(optimizer)
+                        scaler.update()
+                    else:
+                        loss.backward()
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), args.grad_norm
+                        )
+                        optimizer.step()
+
+                    losses.append(loss.item())
+                    losses_e.append(loss_e.item())
+                    losses_r.append(loss_r.item())
+                    losses_static.append(loss_static.item())
+
                 except torch.OutOfMemoryError as e:
                     print(e)
                     torch.cuda.empty_cache()
                     continue
-
-                loss = (
-                    args.task_weight * loss_e
-                    + (1 - args.task_weight) * loss_r
-                    + loss_static
-                )
-
-                losses.append(loss.item())
-                losses_e.append(loss_e.item())
-                losses_r.append(loss_r.item())
-                losses_static.append(loss_static.item())
-
-                if args.bf16:
-                    scaler.scale(loss).backward()
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_norm)
-                    scaler.step(optimizer)
-                    scaler.update()
-                else:
-                    loss.backward()
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_norm)
-                    optimizer.step()
 
             print(
                 "Epoch {:04d} | Ave Loss: {:.4f} | entity-relation-static:{:.4f}-{:.4f}-{:.4f} Best MRR {:.4f} | Model {} ".format(
