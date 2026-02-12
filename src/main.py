@@ -215,7 +215,7 @@ def test(
 
         dirname = os.path.join(pathlib.Path().resolve(), "results")
         eval_paper_authorsfilename = os.path.join(dirname, logname + ".pkl")
-        # if not os.path.isfile( eval_paper_authorsfilename):
+        os.makedirs(dirname, exist_ok=True)
         with open(eval_paper_authorsfilename, "wb") as file:
             pickle.dump(eval_paper_authors_logging_dict, file, protocol=4)
         file.close()
